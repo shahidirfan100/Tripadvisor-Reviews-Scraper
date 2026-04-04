@@ -1,0 +1,85 @@
+{
+  "actorSpecification": 1,
+  "fields": {
+    "item_type": "Item Type",
+    "review_id": "Review ID",
+    "location_id": "Location ID",
+    "location_name": "Location Name",
+    "location_type": "Location Type",
+    "rating": "Rating",
+    "title": "Review Title",
+    "review_text": "Review Text",
+    "language": "Language",
+    "original_language": "Original Language",
+    "published_date": "Published Date",
+    "created_date": "Created Date",
+    "stay_date": "Stay Date",
+    "trip_type": "Trip Type",
+    "helpful_votes": "Helpful Votes",
+    "user_id": "User ID",
+    "user_name": "User Name",
+    "user_profile_url": "User Profile URL",
+    "user_contributions": "User Contributions",
+    "user_hometown": "User Hometown",
+    "source_url": "Source URL",
+    "review_url": "Review URL",
+    "management_response_text": "Management Response Text",
+    "management_response_date": "Management Response Date",
+    "additional_ratings": "Additional Ratings",
+    "total_reviews_on_page": "Total Reviews On Page"
+  },
+  "views": {
+    "overview": {
+      "title": "Overview",
+      "transformation": {
+        "fields": [
+          "item_type",
+          "location_name",
+          "review_id",
+          "rating",
+          "title",
+          "published_date",
+          "user_name",
+          "source_url"
+        ]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "item_type": {
+            "label": "Type",
+            "format": "text"
+          },
+          "location_name": {
+            "label": "Hotel",
+            "format": "text"
+          },
+          "review_id": {
+            "label": "Review ID",
+            "format": "text"
+          },
+          "rating": {
+            "label": "Rating",
+            "format": "text"
+          },
+          "title": {
+            "label": "Title",
+            "format": "text"
+          },
+          "published_date": {
+            "label": "Published",
+            "format": "text"
+          },
+          "user_name": {
+            "label": "User",
+            "format": "text"
+          },
+          "source_url": {
+            "label": "Source",
+            "format": "link"
+          }
+        }
+      }
+    }
+  }
+}

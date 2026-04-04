@@ -1,0 +1,44 @@
+{
+  "title": "TripAdvisor Reviews Scraper",
+  "description": "Extract hotel user reviews from a TripAdvisor hotel page URL using API pagination.",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "startUrl": {
+      "title": "TripAdvisor hotel URL (optional)",
+      "type": "string",
+      "description": "Hotel review page URL. If empty, the actor falls back to INPUT.json value. The scraper automatically extracts locationId from the URL.",
+      "editor": "textfield",
+      "prefill": "https://www.tripadvisor.com/Hotel_Review-g293974-d14930175-Reviews-Sheraton_Istanbul_City_Center-Istanbul.html"
+    },
+    "results_wanted": {
+      "title": "Maximum number of reviews",
+      "type": "integer",
+      "description": "Maximum number of reviews to collect.",
+      "minimum": 1,
+      "default": 20,
+      "prefill": 20,
+      "editor": "number"
+    },
+    "max_pages": {
+      "title": "Maximum pages",
+      "type": "integer",
+      "description": "Safety cap for pagination operations.",
+      "minimum": 1,
+      "default": 5,
+      "prefill": 5,
+      "editor": "number"
+    },
+    "proxyConfiguration": {
+      "title": "Proxy configuration",
+      "type": "object",
+      "description": "Residential proxy is recommended for stable extraction.",
+      "editor": "proxy",
+      "default": {
+        "useApifyProxy": true
+      }
+    }
+  },
+  "required": [],
+  "additionalProperties": false
+}

@@ -1,0 +1,27 @@
+{
+  "name": "tripadvisor-reviews-scraper",
+  "version": "1.0",
+  "description": "TripAdvisor reviews scraper with API-only extraction and pagination.",
+  "type": "module",
+  "dependencies": {
+    "apify": "^3.7.0",
+    "got-scraping": "^4.2.1"
+  },
+  "devDependencies": {
+    "@apify/eslint-config": "^1.0.0",
+    "eslint": "^9.29.0",
+    "eslint-config-prettier": "^10.1.5",
+    "prettier": "^3.5.3",
+    "vitest": "^4.1.0"
+  },
+  "scripts": {
+    "start": "node src/main.js",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint",
+    "lint:fix": "eslint --fix",
+    "test": "echo \"No tests defined yet\""
+  },
+  "author": "Shahid Irfan",
+  "license": "ISC"
+}
