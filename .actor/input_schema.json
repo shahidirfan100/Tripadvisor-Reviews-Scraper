@@ -1,29 +1,63 @@
 {
   "title": "TripAdvisor Reviews Scraper",
-  "description": "Extract hotel user reviews from a TripAdvisor hotel page URL using API pagination.",
+  "description": "Extract hotel user reviews from one or more TripAdvisor hotel page URLs using the TripAdvisor reviews API.",
   "type": "object",
   "schemaVersion": 1,
   "properties": {
-    "startUrl": {
-      "title": "TripAdvisor hotel URL (optional)",
+    "startUrls": {
+      "title": "TripAdvisor hotel URLs",
+      "type": "array",
+      "description": "TripAdvisor hotel review page URLs. Each URL must contain a hotel location identifier in the -d<locationId>- segment.",
+      "editor": "stringList",
+      "prefill": [
+        "https://www.tripadvisor.com/Hotel_Review-g293974-d14930175-Reviews-Sheraton_Istanbul_City_Center-Istanbul.html"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "searchText": {
+      "title": "Review text filter",
       "type": "string",
-      "description": "Hotel review page URL. If empty, the actor falls back to INPUT.json value. The scraper automatically extracts locationId from the URL.",
-      "editor": "textfield",
-      "prefill": "https://www.tripadvisor.com/Hotel_Review-g293974-d14930175-Reviews-Sheraton_Istanbul_City_Center-Istanbul.html"
+      "description": "Return reviews whose TripAdvisor review text matches this search term. Leave empty to disable.",
+      "default": "",
+      "prefill": "",
+      "editor": "textfield"
+    },
+    "sortBy": {
+      "title": "Review sort order",
+      "type": "string",
+      "description": "TripAdvisor API sort order applied before pagination.",
+      "enum": [
+        "MOST_RECENT",
+        "HIGHEST_RATED"
+      ],
+      "default": "MOST_RECENT",
+      "prefill": "MOST_RECENT",
+      "editor": "select"
+    },
+    "lang": {
+      "title": "Review language",
+      "type": "string",
+      "description": "Optional ISO language code filter, such as en or fr. Leave empty to disable.",
+      "default": "",
+      "prefill": "",
+      "editor": "textfield"
     },
     "results_wanted": {
       "title": "Maximum number of reviews",
       "type": "integer",
-      "description": "Maximum number of reviews to collect.",
+      "description": "Maximum total number of unique reviews to collect across all startUrls.",
       "minimum": 1,
       "default": 20,
       "prefill": 20,
       "editor": "number"
     },
     "max_pages": {
-      "title": "Maximum pages",
+      "title": "Maximum pages per hotel",
       "type": "integer",
-      "description": "Safety cap for pagination operations.",
+      "description": "Maximum API pages to request for each hotel URL.",
       "minimum": 1,
       "default": 5,
       "prefill": 5,
@@ -39,6 +73,8 @@
       }
     }
   },
-  "required": [],
+  "required": [
+    "startUrls"
+  ],
   "additionalProperties": false
 }

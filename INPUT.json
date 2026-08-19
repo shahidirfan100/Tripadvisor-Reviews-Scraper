@@ -1,5 +1,10 @@
 {
-  "startUrl": "https://www.tripadvisor.com/Hotel_Review-g293974-d14930175-Reviews-Sheraton_Istanbul_City_Center-Istanbul.html",
+  "startUrls": [
+    "https://www.tripadvisor.com/Hotel_Review-g293974-d14930175-Reviews-Sheraton_Istanbul_City_Center-Istanbul.html"
+  ],
   "results_wanted": 20,
-  "max_pages": 5
+  "max_pages": 5,
+  "searchText": "",
+  "sortBy": "MOST_RECENT",
+  "lang": ""
 }

@@ -1,13 +1,17 @@
-import { Actor, log } from 'apify';
 import { readFile } from 'node:fs/promises';
+
+import { Actor, log } from 'apify';
 import { gotScraping } from 'got-scraping';
 
-const DEFAULT_START_URL = 'https://www.tripadvisor.com/Hotel_Review-g293974-d14930175-Reviews-Sheraton_Istanbul_City_Center-Istanbul.html';
 const DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36';
 const TRIPADVISOR_GRAPHQL_ENDPOINT = 'https://www.tripadvisor.com/data/graphql/ids';
 const TRIPADVISOR_REVIEWS_QUERY_ID = 'ef1a9f94012220d3';
 const MAX_REVIEWS_PER_PAGE = 20;
 const DATASET_PUSH_BATCH_SIZE = 100;
+const REVIEW_SORTS = {
+    MOST_RECENT: { sortType: 'DEFAULT', sortBy: 'DATE' },
+    HIGHEST_RATED: { sortType: 'DEFAULT', sortBy: 'RATING' },
+};
 
 await Actor.init();
 
@@ -39,6 +43,12 @@ function compactRecord(record) {
 function extractLocationIdFromUrl(url) {
     const match = String(url || '').match(/-d(\d+)-/i);
     return match ? match[1] : undefined;
+}
+
+function normalizeTripadvisorUrl(value) {
+    if (typeof value !== 'string' || !value.trim()) return undefined;
+    const url = value.trim();
+    return /^https?:\/\//i.test(url) ? url : `https://${url}`;
 }
 
 function absoluteTripadvisorUrl(pathOrUrl) {
@@ -122,15 +132,27 @@ async function initializeGraphqlSession({ startUrl, proxyUrl }) {
     };
 }
 
-async function fetchReviewsPage({ locationId, startUrl, offset, limit, proxyUrl, cookieHeader }) {
+function normalizeOptionalString(value) {
+    return typeof value === 'string' ? value.trim() : '';
+}
+
+function buildReviewFilters({ searchText, lang }) {
+    const filters = [];
+    if (searchText) filters.push({ axis: 'TEXT', selections: [searchText] });
+    if (lang) filters.push({ axis: 'LANGUAGE', selections: [lang] });
+    return filters;
+}
+
+async function fetchReviewsPage({ locationId, startUrl, offset, limit, proxyUrl, cookieHeader, filters, sort }) {
     const payload = [
         {
             variables: {
                 locationId: Number(locationId),
                 limit,
                 offset,
-                sortType: null,
-                sortBy: 'SERVER_DETERMINED',
+                filters,
+                sortType: sort.sortType,
+                sortBy: sort.sortBy,
                 doMachineTranslation: true,
                 photosPerReviewLimit: 3,
             },
@@ -199,12 +221,23 @@ async function readJsonFileIfExists(filePath) {
     }
 }
 
-function pickStartUrl(runtimeInput, fallbackInput) {
-    const candidates = [runtimeInput?.startUrl, fallbackInput?.startUrl, DEFAULT_START_URL];
+function pickStartUrls(runtimeInput, fallbackInput) {
+    const candidates = [runtimeInput?.startUrls, fallbackInput?.startUrls];
     for (const candidate of candidates) {
-        if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+        if (Array.isArray(candidate)) {
+            const urls = candidate.map(normalizeTripadvisorUrl).filter(Boolean);
+            if (urls.length) return urls;
+        }
     }
-    return DEFAULT_START_URL;
+
+    // Keep old API callers working while the public input is migrated to startUrls.
+    const legacyCandidates = [runtimeInput?.startUrl, fallbackInput?.startUrl];
+    for (const candidate of legacyCandidates) {
+        const url = normalizeTripadvisorUrl(candidate);
+        if (url) return [url];
+    }
+
+    return [];
 }
 
 async function runActor() {
@@ -215,15 +248,27 @@ async function runActor() {
         log.info('Runtime input is empty. Using INPUT.json fallback values.');
     }
 
-    const startUrl = pickStartUrl(runtimeInput, fallbackInput);
+    const startUrls = pickStartUrls(runtimeInput, fallbackInput);
+    if (!startUrls.length) {
+        throw new Error('No valid TripAdvisor hotel URLs were provided in startUrls.');
+    }
+
     const resultsWanted = toPositiveInteger(runtimeInput.results_wanted ?? fallbackInput.results_wanted, 20);
     const maxPages = toPositiveInteger(runtimeInput.max_pages ?? fallbackInput.max_pages, 5);
     const proxyConfigInput = runtimeInput.proxyConfiguration ?? fallbackInput.proxyConfiguration;
-
-    const locationId = extractLocationIdFromUrl(startUrl);
-    if (!locationId) {
-        throw new Error('Could not extract locationId from startUrl. Use a TripAdvisor hotel URL containing -d<locationId>-.');
-    }
+    const searchText = normalizeOptionalString(
+        runtimeInput.searchText
+        ?? runtimeInput.keyword
+        ?? fallbackInput.searchText
+        ?? fallbackInput.keyword,
+    );
+    const lang = normalizeOptionalString(runtimeInput.lang ?? fallbackInput.lang).toLowerCase();
+    const requestedSortKey = runtimeInput.sortBy ?? fallbackInput.sortBy ?? 'MOST_RECENT';
+    const sortKey = typeof requestedSortKey === 'string' && Object.hasOwn(REVIEW_SORTS, requestedSortKey)
+        ? requestedSortKey
+        : 'MOST_RECENT';
+    const sort = REVIEW_SORTS[sortKey];
+    const filters = buildReviewFilters({ searchText, lang });
 
     let proxyUrl;
     if (proxyConfigInput) {
@@ -249,69 +294,84 @@ async function runActor() {
         }
     }
 
-    const session = await initializeGraphqlSession({ startUrl, proxyUrl });
-    log.info(`TripAdvisor session bootstrap status: HTTP ${session.statusCode}.`);
-    if (!session.cookieHeader) {
-        log.warning('TripAdvisor bootstrap did not return session cookies. Pagination request may fail on some runs.');
-    }
-
-    log.info(`Fetching TripAdvisor user reviews for locationId=${locationId}.`);
-
     const seenReviewKeys = new Set();
     let pendingReviews = [];
     let savedReviews = 0;
-    let page = 0;
-    let offset = 0;
-    let totalReviewsOnPage;
+    let pagesFetched = 0;
+    const locationSummaries = [];
 
-    while ((savedReviews + pendingReviews.length) < resultsWanted && page < maxPages) {
-        const collectedReviews = savedReviews + pendingReviews.length;
-        const limit = Math.min(MAX_REVIEWS_PER_PAGE, resultsWanted - collectedReviews);
-        const batch = await fetchReviewsPage({
-            locationId,
-            startUrl,
-            offset,
-            limit,
-            proxyUrl,
-            cookieHeader: session.cookieHeader,
-        });
-        if (totalReviewsOnPage === undefined) totalReviewsOnPage = batch.totalCount;
+    log.info(`Sort=${sortKey}, API sortType=${sort.sortType}, API sortBy=${sort.sortBy}, filters=${filters.length}.`);
 
-        if (!batch.reviews.length) break;
+    for (const startUrl of startUrls) {
+        if ((savedReviews + pendingReviews.length) >= resultsWanted) break;
 
-        for (const rawReview of batch.reviews) {
-            const normalized = normalizeReview(rawReview, { locationId, startUrl, totalReviewsOnPage });
-            if (!Object.keys(normalized).length) continue;
+        const locationId = extractLocationIdFromUrl(startUrl);
+        if (!locationId) {
+            log.warning(`Skipping URL without a TripAdvisor location ID: ${startUrl}`);
+            continue;
+        }
 
-            const key = getReviewDedupKey(normalized);
-            if (!key || seenReviewKeys.has(key)) continue;
+        const session = await initializeGraphqlSession({ startUrl, proxyUrl });
+        log.info(`TripAdvisor session bootstrap status for locationId=${locationId}: HTTP ${session.statusCode}.`);
+        if (!session.cookieHeader) {
+            log.warning(`TripAdvisor bootstrap returned no session cookies for locationId=${locationId}.`);
+        }
 
-            seenReviewKeys.add(key);
-            pendingReviews.push(normalized);
+        let page = 0;
+        let offset = 0;
+        let totalReviewsOnPage;
 
-            if (pendingReviews.length >= DATASET_PUSH_BATCH_SIZE) {
-                await Actor.pushData(pendingReviews);
-                savedReviews += pendingReviews.length;
-                pendingReviews = [];
+        while ((savedReviews + pendingReviews.length) < resultsWanted && page < maxPages) {
+            const collectedReviews = savedReviews + pendingReviews.length;
+            const limit = Math.min(MAX_REVIEWS_PER_PAGE, resultsWanted - collectedReviews);
+            const batch = await fetchReviewsPage({
+                locationId,
+                startUrl,
+                offset,
+                limit,
+                proxyUrl,
+                cookieHeader: session.cookieHeader,
+                filters,
+                sort,
+            });
+            if (totalReviewsOnPage === undefined) totalReviewsOnPage = batch.totalCount;
+
+            if (!batch.reviews.length) break;
+
+            for (const rawReview of batch.reviews) {
+                const normalized = normalizeReview(rawReview, { locationId, startUrl, totalReviewsOnPage });
+                if (!Object.keys(normalized).length) continue;
+
+                const key = getReviewDedupKey(normalized);
+                if (!key || seenReviewKeys.has(key)) continue;
+
+                seenReviewKeys.add(key);
+                pendingReviews.push(normalized);
+
+                if (pendingReviews.length >= DATASET_PUSH_BATCH_SIZE) {
+                    await Actor.pushData(pendingReviews);
+                    savedReviews += pendingReviews.length;
+                    pendingReviews = [];
+                }
+
+                if ((savedReviews + pendingReviews.length) >= resultsWanted) break;
             }
 
-            if ((savedReviews + pendingReviews.length) >= resultsWanted) break;
+            offset += batch.reviews.length;
+            page += 1;
+            pagesFetched += 1;
+            log.info(`Progress: locationId=${locationId}, page=${page}, offset=${offset}, collected=${savedReviews + pendingReviews.length}/${resultsWanted}, reviews_on_page=${totalReviewsOnPage || 'n/a'}.`);
+
+            if (batch.reviews.length < limit) break;
         }
 
-        offset += batch.reviews.length;
-        page += 1;
-
-        if (
-            page === 1
-            || page % 10 === 0
-            || batch.reviews.length < limit
-            || page === maxPages
-            || (savedReviews + pendingReviews.length) >= resultsWanted
-        ) {
-            log.info(`Progress: page=${page}, offset=${offset}, collected=${savedReviews + pendingReviews.length}/${resultsWanted}, reviews_on_page=${totalReviewsOnPage || 'n/a'}.`);
-        }
-
-        if (batch.reviews.length < limit) break;
+        locationSummaries.push({
+            start_url: startUrl,
+            location_id: locationId,
+            reviews_on_page: totalReviewsOnPage,
+            pages_fetched: page,
+            last_offset: offset,
+        });
     }
 
     if (pendingReviews.length) {
@@ -324,15 +384,15 @@ async function runActor() {
     }
 
     await Actor.setValue('RUN_INFO', {
-        start_url: startUrl,
-        location_id: locationId,
-        reviews_on_page: totalReviewsOnPage,
+        start_urls: startUrls,
+        locations: locationSummaries,
         requested_reviews: resultsWanted,
         saved_reviews: savedReviews,
-        pages_fetched: page,
-        last_offset: offset,
+        pages_fetched: pagesFetched,
+        sort_by: sortKey,
+        filters,
     });
-    log.info(`Saved ${savedReviews} unique user reviews. Reviews shown on page: ${totalReviewsOnPage || 'unknown'}.`);
+    log.info(`Saved ${savedReviews} unique user reviews across ${locationSummaries.length} location(s).`);
 }
 
 try {

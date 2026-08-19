@@ -1,6 +1,6 @@
 ## What does TripAdvisor Reviews Scraper do?
 
-TripAdvisor Reviews Scraper collects structured hotel reviews from a public TripAdvisor hotel review page. Enter one hotel URL, choose how many reviews to collect, and receive dataset records containing ratings, review text, dates, trip details, reviewer information, management responses, and additional ratings when available.
+TripAdvisor Reviews Scraper collects structured hotel reviews from one or more public TripAdvisor hotel review pages. Enter hotel URLs as a string array, choose how many reviews to collect, optionally filter and sort them through the TripAdvisor reviews API, and receive dataset records containing ratings, review text, dates, trip details, reviewer information, management responses, and additional ratings when available.
 
 This TripAdvisor data extractor is useful for hotel reputation monitoring, competitor research, guest-feedback analysis, travel market research, and dashboards. The Actor follows review pagination automatically and removes duplicate records before saving the dataset.
 
@@ -51,31 +51,35 @@ Each saved dataset item represents one hotel review. Empty values are omitted fr
 ## How to scrape TripAdvisor hotel reviews
 
 1. Open TripAdvisor Reviews Scraper in Apify Console.
-2. Paste a TripAdvisor hotel review page URL into `startUrl`.
+2. Add one or more TripAdvisor hotel review page URLs to `startUrls`.
 3. Set `results_wanted` to the maximum number of review records you want.
 4. Set `max_pages` if you want to limit how many review pages are checked.
-5. Optionally configure an Apify proxy for more consistent collection.
-6. Start the run and open the dataset when it finishes.
-7. Download the results or connect them to your reporting and automation workflow.
+5. Optionally set `sortBy`, `searchText`, or `lang`.
+6. Optionally configure an Apify proxy for more consistent collection.
+7. Start the run and open the dataset when it finishes.
+8. Download the results or connect them to your reporting and automation workflow.
 
 Use a canonical hotel URL containing a location segment such as `-d14930175-`. The Actor reads the hotel location identifier from the URL, so a hotel review page is required rather than a TripAdvisor search page or a general website URL.
 
 ## Input Parameters
 
-All input parameters are optional because the Actor includes default values. For a predictable run, provide `startUrl` explicitly.
+`startUrls` is required. The remaining parameters have safe defaults and can be omitted.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `startUrl` | String | No | Sample hotel URL | TripAdvisor hotel review page URL. It must contain the hotel location identifier in the URL. |
-| `results_wanted` | Integer | No | `20` | Maximum number of unique reviews to save. Minimum value is `1`. |
-| `max_pages` | Integer | No | `5` | Maximum number of review pages to check. Minimum value is `1`. |
+| `startUrls` | String array | Yes | Sample hotel URL | One or more TripAdvisor hotel review page URLs. Each URL must contain the hotel location identifier. |
+| `results_wanted` | Integer | No | `20` | Maximum total number of unique reviews to save across all URLs. Minimum value is `1`. |
+| `max_pages` | Integer | No | `5` | Maximum number of API review pages to check per hotel. Minimum value is `1`. |
+| `searchText` | String | No | Empty | TripAdvisor API text filter. Empty disables the filter. |
+| `sortBy` | Enum | No | `MOST_RECENT` | Supported values: `MOST_RECENT` or `HIGHEST_RATED`. |
+| `lang` | String | No | Empty | Optional review language code such as `en` or `fr`. |
 | `proxyConfiguration` | Object | No | Apify proxy enabled by default in the input form | Optional Apify proxy settings. Residential proxy routing is recommended for more consistent runs. |
 
 The prefilled URL is a sample TripAdvisor hotel page. Replace it with the hotel you want to analyze.
 
 ## Output Data
 
-The main output is an Apify dataset containing one item per unique review. The Actor also stores a `RUN_INFO` record with run-level details such as the selected URL, location ID, requested review count, saved review count, pages fetched, and the last pagination offset.
+The main output is an Apify dataset containing one item per unique review. The Actor also stores a `RUN_INFO` record with the selected URLs, per-location summaries, requested and saved counts, pages fetched, selected sort, and the exact API filters sent.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -114,7 +118,9 @@ Collect up to 20 reviews from one TripAdvisor hotel page using the default page 
 
 ```json
 {
-  "startUrl": "https://www.tripadvisor.com/Hotel_Review-g293974-d14930175-Reviews-Sheraton_Istanbul_City_Center-Istanbul.html",
+  "startUrls": [
+    "https://www.tripadvisor.com/Hotel_Review-g293974-d14930175-Reviews-Sheraton_Istanbul_City_Center-Istanbul.html"
+  ],
   "results_wanted": 20
 }
 ```
@@ -125,7 +131,10 @@ Request up to 100 unique reviews and allow the Actor to check up to 20 pages.
 
 ```json
 {
-  "startUrl": "https://www.tripadvisor.com/Hotel_Review-g293974-d14930175-Reviews-Sheraton_Istanbul_City_Center-Istanbul.html",
+  "startUrls": [
+    "https://www.tripadvisor.com/Hotel_Review-g293974-d14930175-Reviews-Sheraton_Istanbul_City_Center-Istanbul.html",
+    "https://www.tripadvisor.com/Hotel_Review-g60763-d93425-Reviews-The_Plaza-New_York_City_New_York.html"
+  ],
   "results_wanted": 100,
   "max_pages": 20
 }
@@ -137,7 +146,9 @@ Enable residential proxy routing for a run that needs more consistent access to 
 
 ```json
 {
-  "startUrl": "https://www.tripadvisor.com/Hotel_Review-g293974-d14930175-Reviews-Sheraton_Istanbul_City_Center-Istanbul.html",
+  "startUrls": [
+    "https://www.tripadvisor.com/Hotel_Review-g293974-d14930175-Reviews-Sheraton_Istanbul_City_Center-Istanbul.html"
+  ],
   "results_wanted": 50,
   "max_pages": 10,
   "proxyConfiguration": {
@@ -146,6 +157,22 @@ Enable residential proxy routing for a run that needs more consistent access to 
       "RESIDENTIAL"
     ]
   }
+}
+```
+
+### Filter and sort reviews through the API
+
+The following sends verified TripAdvisor GraphQL filters and requests the highest-rated reviews. Filters are applied before pagination.
+
+```json
+{
+  "startUrls": [
+    "https://www.tripadvisor.com/Hotel_Review-g293974-d14930175-Reviews-Sheraton_Istanbul_City_Center-Istanbul.html"
+  ],
+  "results_wanted": 50,
+  "sortBy": "HIGHEST_RATED",
+  "searchText": "breakfast",
+  "lang": "en"
 }
 ```
 
@@ -195,7 +222,7 @@ The following example shows one realistic dataset item. Fields may be omitted wh
 - Start with `results_wanted: 20` to confirm that the URL and output meet your needs.
 - Increase `max_pages` when you request a larger dataset. The Actor checks up to 20 reviews per page.
 - Enable the recommended residential proxy option when a run is inconsistent or the source page is difficult to access.
-- Run one hotel per Actor run. For a portfolio of hotels, create separate scheduled runs or trigger runs through the Apify API.
+- Add multiple hotel URLs to `startUrls` when you want one run to collect from several hotels. `results_wanted` is a global limit across the URLs.
 - Review the dataset preview before setting up a recurring schedule.
 - Expect some fields to be empty or absent when the reviewer or hotel has not published that information.
 
@@ -217,7 +244,11 @@ Yes, provide the public TripAdvisor review page for the hotel you want to collec
 
 ### Can I collect reviews from multiple hotels in one run?
 
-No, the current input accepts one `startUrl` per run. Run the Actor separately for each hotel, or automate multiple runs with the Apify API.
+Yes, add multiple hotel URLs to the `startUrls` string array. The Actor deduplicates reviews and applies `results_wanted` across the complete run.
+
+### Which filters and sort orders are supported?
+
+The actor supports `searchText` and `lang` filters. `sortBy` supports `MOST_RECENT` and `HIGHEST_RATED`; these are mapped to the exact GraphQL values discovered for the TripAdvisor reviews API.
 
 ### How many reviews can I collect?
 
@@ -241,7 +272,7 @@ Yes, create an Apify schedule to run the Actor hourly, daily, weekly, or at a cu
 
 ### What should I do if a run returns no reviews?
 
-Confirm that `startUrl` is a valid public hotel review page with a `-d<locationId>-` segment. Try a smaller result limit, enable residential proxy routing, and report persistent problems through the Actor Issues tab.
+Confirm that every `startUrls` value is a valid public hotel review page with a `-d<locationId>-` segment. Try a smaller result limit, enable residential proxy routing, and report persistent problems through the Actor Issues tab.
 
 ### Can I export TripAdvisor reviews to CSV or Excel?
 
