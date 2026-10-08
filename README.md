@@ -63,17 +63,17 @@ Use a canonical hotel URL containing a location segment such as `-d14930175-`. T
 
 ## Input Parameters
 
-`startUrls` is required. The remaining parameters have safe defaults and can be omitted.
+Every parameter has a safe default. Add one or more hotel URLs to `startUrls` to target your own hotels; if it is omitted, the sample hotel URL is used.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `startUrls` | String array | Yes | Sample hotel URL | One or more TripAdvisor hotel review page URLs. Each URL must contain the hotel location identifier. |
+| `startUrls` | String array | No | Sample hotel URL | One or more TripAdvisor hotel review page URLs. Each URL must contain the hotel location identifier. |
 | `results_wanted` | Integer | No | `20` | Maximum total number of unique reviews to save across all URLs. Minimum value is `1`. |
 | `max_pages` | Integer | No | `5` | Maximum number of API review pages to check per hotel. Minimum value is `1`. |
 | `searchText` | String | No | Empty | TripAdvisor API text filter. Empty disables the filter. |
 | `sortBy` | Enum | No | `MOST_RECENT` | Supported values: `MOST_RECENT` or `HIGHEST_RATED`. |
 | `lang` | String | No | Empty | Optional review language code such as `en` or `fr`. |
-| `proxyConfiguration` | Object | No | Apify proxy enabled by default in the input form | Optional Apify proxy settings. Residential proxy routing is recommended for more consistent runs. |
+| `proxyConfiguration` | Object | No | Apify residential proxy | Optional Apify proxy settings. Residential proxy routing is required for stable runs because TripAdvisor blocks datacenter IPs. |
 
 The prefilled URL is a sample TripAdvisor hotel page. Replace it with the hotel you want to analyze.
 
@@ -220,7 +220,7 @@ The following example shows one realistic dataset item. Fields may be omitted wh
 
 - Use the complete hotel review page URL, including the `-d<locationId>-` segment.
 - Start with `results_wanted: 20` to confirm that the URL and output meet your needs.
-- Increase `max_pages` when you request a larger dataset. The Actor checks up to 20 reviews per page.
+- Increase `max_pages` when you request a larger dataset. Each paginated page adds about 10 reviews on top of the initial batch of 20.
 - Enable the recommended residential proxy option when a run is inconsistent or the source page is difficult to access.
 - Add multiple hotel URLs to `startUrls` when you want one run to collect from several hotels. `results_wanted` is a global limit across the URLs.
 - Review the dataset preview before setting up a recurring schedule.

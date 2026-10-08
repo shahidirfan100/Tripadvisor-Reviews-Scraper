@@ -5,7 +5,8 @@
   "type": "module",
   "dependencies": {
     "apify": "^3.7.0",
-    "got-scraping": "^4.2.1"
+    "impit": "^0.14.5",
+    "patchright": "^1.63.0"
   },
   "devDependencies": {
     "@apify/eslint-config": "^1.0.0",

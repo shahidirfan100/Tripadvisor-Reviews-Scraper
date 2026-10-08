@@ -10,6 +10,7 @@ storage
 
 # installed files
 node_modules
+package-lock.json
 
 # git folder
 .git
