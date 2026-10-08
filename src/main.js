@@ -1029,6 +1029,12 @@ async function runActor() {
                 if (savedReviews + pendingReviews.length >= resultsWanted) break;
             }
 
+            if (pendingReviews.length) {
+                await Actor.pushData(pendingReviews);
+                savedReviews += pendingReviews.length;
+                pendingReviews = [];
+            }
+
             offset += batch.reviews.length;
             page += 1;
             pagesFetched += 1;
@@ -1118,6 +1124,12 @@ async function runActor() {
                     }
 
                     if (savedReviews + pendingReviews.length >= resultsWanted) break;
+                }
+
+                if (pendingReviews.length) {
+                    await Actor.pushData(pendingReviews);
+                    savedReviews += pendingReviews.length;
+                    pendingReviews = [];
                 }
 
                 htmlPages += 1;

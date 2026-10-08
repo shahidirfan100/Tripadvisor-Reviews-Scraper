@@ -21,7 +21,7 @@
     "format:check": "prettier --check .",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
-    "test": "echo \"No tests defined yet\""
+    "test": "node --test qa.test.js"
   },
   "author": "Shahid Irfan",
   "license": "ISC"
